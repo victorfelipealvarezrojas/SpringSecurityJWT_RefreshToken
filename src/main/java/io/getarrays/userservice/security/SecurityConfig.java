@@ -1,8 +1,10 @@
 package io.getarrays.userservice.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.getarrays.userservice.filter.CustomAuthenticationFilter;
 import io.getarrays.userservice.filter.CustomAuthorizationFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,13 +20,38 @@ import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.security.config.http.SessionCreationPolicy.*;
 
+
+/**
+ * @Propósito: Configuración centralizada de seguridad para la aplicación Spring.
+ *
+ * Esta clase:
+ * - Define la configuración de seguridad global de la aplicación.
+ * - Especifica cómo se realizará la autenticación y autorización.
+ * - Configura filtros de seguridad personalizados.
+ * - Establece reglas de acceso para diferentes rutas y recursos.
+ *
+ * @Componentes principales:
+ * - UserDetailsService: Para cargar los detalles del usuario durante la autenticación.
+ * - BCryptPasswordEncoder: Para el hash y verificación de contraseñas.
+ * - CustomAuthenticationFilter: Filtro personalizado para el proceso de autenticación.
+ * - CustomAuthorizationFilter: Filtro personalizado para el proceso de autorización.
+ *
+ * @Configuración:
+ * - Desactiva CSRF para permitir peticiones POST sin token CSRF.
+ * - Configura la gestión de sesiones como STATELESS para arquitecturas RESTful.
+ * - Define reglas de autorización específicas para diferentes endpoints.
+ * - Agrega filtros personalizados a la cadena de filtros de seguridad.
+ *
+ * @Extensión:
+ * Extiende WebSecurityConfigurerAdapter, que será deprecado en versiones futuras.
+ * Se recomienda migrar a la nueva API de configuración de seguridad en actualizaciones posteriores.
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private final UserDetailsService userDetailsService;
-
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
 
 
@@ -43,6 +70,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         auth.userDetailsService(userDetailsService).passwordEncoder(bCryptPasswordEncoder);
     }
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     /**
      * @Propósito: Configura la seguridad a nivel de HTTP y la autorización.
      *
@@ -55,7 +85,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
      */
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        CustomAuthenticationFilter customAuthenticationFilter = new CustomAuthenticationFilter(authenticationManagerBean());
+        // Mi filtro personalizado para el proceso de autenticación, maneja JSON y X-WWW-Form-UrlEncoded.
+        CustomAuthenticationFilter customAuthenticationFilter = new CustomAuthenticationFilter(authenticationManagerBean(), objectMapper);
         customAuthenticationFilter.setFilterProcessesUrl("/api/login");
         http.csrf().disable();
         http.sessionManagement().sessionCreationPolicy(STATELESS);
@@ -64,6 +95,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         http.authorizeRequests().antMatchers(POST, "/api/user/save/**").hasAnyAuthority("ROLE_ADMIN");
         http.authorizeRequests().anyRequest().authenticated();
         http.addFilter(customAuthenticationFilter);
+        // Mi filtro personalizado para el proceso de autorización.
         http.addFilterBefore(new CustomAuthorizationFilter(), UsernamePasswordAuthenticationFilter.class);
     }
 
